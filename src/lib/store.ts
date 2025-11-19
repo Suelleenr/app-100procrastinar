@@ -23,7 +23,10 @@ interface AppState {
   // Micro Tarefas
   microTarefas: MicroTarefa[];
   addMicroTarefas: (tarefas: MicroTarefa[]) => void;
+  updateMicroTarefa: (id: string, data: Partial<MicroTarefa>) => void;
   completeMicroTarefa: (id: string, tempoReal: number) => void;
+  refazerMicroTarefa: (id: string) => void;
+  iniciarMicroTarefa: (id: string) => void;
   getProximaMicroTarefa: () => MicroTarefa | null;
   
   // Progresso
@@ -77,7 +80,7 @@ export const useAppStore = create<AppState>()(
         metas: [...state.metas, meta],
       })),
       updateMeta: (id, data) => set((state) => ({
-        metas: state.metas.map((m) => m.id === id ? { ...m, ...data } : m),
+        metas: state.metas.map((m) => m.id === id ? { ...m, ...data, updatedAt: new Date() } : m),
       })),
       deleteMeta: (id) => set((state) => ({
         metas: state.metas.filter((m) => m.id !== id),
@@ -89,6 +92,31 @@ export const useAppStore = create<AppState>()(
       addMicroTarefas: (tarefas) => set((state) => ({
         microTarefas: [...state.microTarefas, ...tarefas],
       })),
+      updateMicroTarefa: (id, data) => set((state) => ({
+        microTarefas: state.microTarefas.map((mt) =>
+          mt.id === id ? { ...mt, ...data } : mt
+        ),
+      })),
+      iniciarMicroTarefa: (id) => {
+        const microTarefa = get().microTarefas.find((mt) => mt.id === id);
+        if (!microTarefa) return;
+        
+        const agora = new Date();
+        const expiraEm = new Date(agora.getTime() + microTarefa.duracao * 60000);
+        
+        set((state) => ({
+          microTarefas: state.microTarefas.map((mt) =>
+            mt.id === id
+              ? {
+                  ...mt,
+                  status: 'em_andamento' as const,
+                  iniciadaEm: agora,
+                  expiraEm,
+                }
+              : mt
+          ),
+        }));
+      },
       completeMicroTarefa: (id, tempoReal) => {
         set((state) => ({
           microTarefas: state.microTarefas.map((mt) =>
@@ -106,10 +134,26 @@ export const useAppStore = create<AppState>()(
         // Atualizar progresso
         get().updateProgresso(tempoReal);
       },
+      refazerMicroTarefa: (id) => {
+        set((state) => ({
+          microTarefas: state.microTarefas.map((mt) =>
+            mt.id === id
+              ? {
+                  ...mt,
+                  status: 'pendente' as const,
+                  completadaEm: undefined,
+                  tempoReal: undefined,
+                  iniciadaEm: undefined,
+                  expiraEm: undefined,
+                }
+              : mt
+          ),
+        }));
+      },
       getProximaMicroTarefa: () => {
         const state = get();
         const pendentes = state.microTarefas
-          .filter((mt) => mt.status === 'pendente')
+          .filter((mt) => mt.status === 'pendente' || mt.status === 'em_andamento')
           .sort((a, b) => a.ordem - b.ordem);
         
         return pendentes[0] || null;

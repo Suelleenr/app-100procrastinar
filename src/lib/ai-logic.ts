@@ -17,6 +17,180 @@ export interface MetaProcessada {
   microTarefas: Omit<MicroTarefa, 'id' | 'metaId' | 'status' | 'completadaEm' | 'tempoReal'>[];
 }
 
+export interface TarefaOrganizada {
+  id: string;
+  descricao: string;
+  categoria: string;
+  prioridade: string;
+  duracaoEstimada: number;
+  ordem: number;
+}
+
+export interface OrganizarTarefasInput {
+  texto: string;
+  tempoDisponivel: number;
+  prioridades: CategoryType[];
+}
+
+// Nova função: Organizar tarefas de forma inteligente
+export function organizarTarefasInteligente(input: OrganizarTarefasInput): TarefaOrganizada[] {
+  const { texto, tempoDisponivel, prioridades } = input;
+  
+  // Dividir o texto em tarefas individuais
+  const tarefasBrutas = extrairTarefas(texto);
+  
+  // Analisar cada tarefa
+  const tarefasAnalisadas = tarefasBrutas.map((tarefa, index) => {
+    const analise = analisarTarefa(tarefa);
+    return {
+      id: crypto.randomUUID(),
+      descricao: tarefa,
+      categoria: analise.categoria,
+      prioridade: analise.prioridade,
+      duracaoEstimada: analise.duracaoEstimada,
+      ordem: index + 1,
+    };
+  });
+  
+  // Ordenar por prioridade inteligente
+  const tarefasOrdenadas = ordenarPorPrioridadeInteligente(
+    tarefasAnalisadas,
+    tempoDisponivel,
+    prioridades
+  );
+  
+  // Ajustar ordem final
+  return tarefasOrdenadas.map((tarefa, index) => ({
+    ...tarefa,
+    ordem: index + 1,
+  }));
+}
+
+// Extrair tarefas do texto livre - VERSÃO MELHORADA
+function extrairTarefas(texto: string): string[] {
+  // Primeiro, tentar identificar listas numeradas ou com marcadores
+  const linhas = texto.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  
+  // Se tem múltiplas linhas, cada linha é uma tarefa
+  if (linhas.length > 1) {
+    return linhas.map(linha => {
+      // Remover marcadores comuns (números, traços, asteriscos, etc)
+      return linha.replace(/^[\d\-\*\•\→\>\#]+[\.\):\s]*/g, '').trim();
+    }).filter(t => t.length > 2);
+  }
+  
+  // Se é uma única linha, separar por vírgulas, "e", ponto e vírgula
+  const separadores = /[,;]|(?:\s+e\s+)/gi;
+  const tarefas = texto
+    .split(separadores)
+    .map(t => t.trim())
+    .filter(t => t.length > 2); // Aceitar tarefas com 3+ caracteres
+  
+  return tarefas;
+}
+
+// Analisar uma tarefa individual
+function analisarTarefa(tarefa: string): {
+  categoria: string;
+  prioridade: string;
+  duracaoEstimada: number;
+} {
+  const tarefaLower = tarefa.toLowerCase();
+  
+  // Detectar categoria
+  let categoria = 'trabalho';
+  if (tarefaLower.match(/estudar|aprender|ler|curso|prova|aula|matéria|revisar|livro|capítulo/)) {
+    categoria = 'estudos';
+  } else if (tarefaLower.match(/limpar|lavar|organizar|arrumar|cozinha|quarto|casa|roupa/)) {
+    categoria = 'casa';
+  } else if (tarefaLower.match(/exercício|academia|correr|caminhar|treino|alongar|yoga/)) {
+    categoria = 'saude';
+  } else if (tarefaLower.match(/pagar|conta|dinheiro|banco|boleto|fatura|comprar/)) {
+    categoria = 'financas';
+  } else if (tarefaLower.match(/meditar|relaxar|descansar|dormir|hobby|lazer/)) {
+    categoria = 'bem-estar';
+  } else if (tarefaLower.match(/escola|colégio|dever|lição/)) {
+    categoria = 'escola';
+  } else if (tarefaLower.match(/email|responder|mensagem/)) {
+    categoria = 'trabalho';
+  }
+  
+  // Detectar prioridade
+  let prioridade = 'media';
+  if (tarefaLower.match(/urgente|hoje|agora|imediato|rápido/)) {
+    prioridade = 'urgente';
+  } else if (tarefaLower.match(/importante|prioridade|essencial|crítico/)) {
+    prioridade = 'alta';
+  } else if (tarefaLower.match(/quando der|depois|talvez|se possível/)) {
+    prioridade = 'baixa';
+  }
+  
+  // Estimar duração baseado na complexidade
+  let duracaoEstimada = 15; // padrão
+  
+  if (tarefaLower.match(/rápido|pequeno|simples|só|apenas/)) {
+    duracaoEstimada = 10;
+  } else if (tarefaLower.match(/completo|todo|tudo|geral|profundo/)) {
+    duracaoEstimada = 30;
+  }
+  
+  // Ajustar por tipo de tarefa
+  if (categoria === 'estudos') {
+    duracaoEstimada = 25;
+  } else if (categoria === 'casa') {
+    duracaoEstimada = 20;
+  } else if (categoria === 'saude') {
+    duracaoEstimada = 15;
+  } else if (categoria === 'financas') {
+    duracaoEstimada = 10;
+  }
+  
+  return { categoria, prioridade, duracaoEstimada };
+}
+
+// Ordenar tarefas de forma inteligente
+function ordenarPorPrioridadeInteligente(
+  tarefas: TarefaOrganizada[],
+  tempoDisponivel: number,
+  prioridadesUsuario: CategoryType[]
+): TarefaOrganizada[] {
+  // Peso de prioridade
+  const pesoPrioridade: Record<string, number> = {
+    urgente: 100,
+    alta: 75,
+    media: 50,
+    baixa: 25,
+  };
+  
+  // Peso de categoria (baseado nas prioridades do usuário)
+  const pesoCategoria: Record<string, number> = {};
+  prioridadesUsuario.forEach((cat, index) => {
+    pesoCategoria[cat] = 100 - (index * 15);
+  });
+  
+  // Calcular score para cada tarefa
+  const tarefasComScore = tarefas.map(tarefa => {
+    const scorePrioridade = pesoPrioridade[tarefa.prioridade] || 50;
+    const scoreCategoria = pesoCategoria[tarefa.categoria] || 30;
+    
+    // Tarefas rápidas ganham bônus (efeito momentum)
+    const bonusRapida = tarefa.duracaoEstimada <= 10 ? 20 : 0;
+    
+    const scoreTotal = scorePrioridade + scoreCategoria + bonusRapida;
+    
+    return {
+      ...tarefa,
+      score: scoreTotal,
+    };
+  });
+  
+  // Ordenar por score (maior primeiro)
+  tarefasComScore.sort((a, b) => b.score - a.score);
+  
+  // Retornar TODAS as tarefas organizadas (não filtrar por tempo disponível)
+  return tarefasComScore;
+}
+
 // Simula processamento de IA para dividir metas em micro tarefas
 export function processarMetaComIA(input: MetaInput): MetaProcessada {
   const texto = input.texto.toLowerCase();

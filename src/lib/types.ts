@@ -2,9 +2,9 @@
 
 export type AvatarType = 'fofo' | 'serio' | 'engracado' | 'militar' | 'anime';
 export type PlanType = 'free' | 'premium';
-export type CategoryType = 'trabalho' | 'estudos' | 'casa' | 'saude' | 'financas' | 'bem-estar';
+export type CategoryType = 'trabalho' | 'estudos' | 'casa' | 'saude' | 'financas' | 'bem-estar' | 'escola' | 'academia';
 export type PriorityType = 'baixa' | 'media' | 'alta' | 'urgente';
-export type StatusType = 'pendente' | 'em_andamento' | 'concluida' | 'cancelada';
+export type StatusType = 'pendente' | 'em_andamento' | 'concluida' | 'cancelada' | 'atrasada' | 'expirada';
 
 export interface User {
   id: string;
@@ -40,6 +40,8 @@ export interface MicroTarefa {
   status: StatusType;
   completadaEm?: Date;
   tempoReal?: number; // tempo real que levou
+  iniciadaEm?: Date; // quando começou
+  expiraEm?: Date; // quando expira baseado na duração
 }
 
 export interface Progresso {
